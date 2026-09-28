@@ -144,8 +144,12 @@ else
   WHEN="until this machine restarts (no systemd found: add it to your startup yourself)"
 fi
 
-sleep 2
-if curl -fsS -m 3 "http://127.0.0.1:$PORT/ping" >/dev/null 2>&1; then
+UP=""
+for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15; do     # give the service a moment to start
+  if curl -fsS -m 2 "http://127.0.0.1:$PORT/ping" >/dev/null 2>&1; then UP=1; break; fi
+  sleep 1
+done
+if [ -n "$UP" ]; then
   say ""
   say "solard is running, and starts $WHEN."
   say "  Dashboard:      http://${IP:-localhost}:$PORT/"

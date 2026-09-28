@@ -86,12 +86,15 @@ if (-not (Get-NetFirewallRule -DisplayName 'solard (QuickSolar)' -ErrorAction Si
     catch { Write-Host '  skipped -- phones may not reach solard until you allow it in Windows Defender Firewall.' }
 }
 
-Start-Sleep -Seconds 3
 $ip = (Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
        Where-Object { $_.IPAddress -notmatch '^(127|169\.254)\.' -and $_.PrefixOrigin -ne 'WellKnown' } |
        Select-Object -First 1).IPAddress
+$up = $false
+foreach ($i in 1..15) {                       # give the service a moment to start
+    try { Invoke-WebRequest -UseBasicParsing -TimeoutSec 2 -Uri "http://127.0.0.1:$port/ping" | Out-Null; $up = $true; break } catch { Start-Sleep -Seconds 1 }
+}
 try {
-    Invoke-WebRequest -UseBasicParsing -TimeoutSec 3 -Uri "http://127.0.0.1:$port/ping" | Out-Null
+    if (-not $up) { throw 'not up' }
     Write-Host ''
     Write-Host 'solard is running, and starts every time you sign in.'
     Write-Host "  Dashboard:      http://$($ip):$port/"
