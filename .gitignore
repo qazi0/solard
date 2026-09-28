@@ -1,0 +1,16 @@
+# build outputs
+dist/
+server/index_html.h
+server/solard
+server/solard.exe
+android/build/
+android/assets/
+# never commit signing keys
+*.p12
+*.jks
+*.keystore
+*.pass
+.DS_Store
+*.dbg
+*.elf
+*.com

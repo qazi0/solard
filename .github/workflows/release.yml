@@ -1,0 +1,122 @@
+name: build
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cosmo:
+    name: Linux + Windows binaries (Cosmopolitan)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Get cosmocc
+        run: |
+          curl -fsSLo cosmocc.zip https://cosmo.zip/pub/cosmocc/cosmocc.zip
+          mkdir -p "$HOME/cosmocc" && unzip -q cosmocc.zip -d "$HOME/cosmocc"
+          echo "$HOME/cosmocc/bin" >> "$GITHUB_PATH"
+      - run: server/build.sh release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cosmo
+          path: dist/solard-*
+
+  macos:
+    name: macOS binary (universal)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          mkdir -p dist && cd server && xxd -i index.html > index_html.h
+          cc -O2 -Wall -Wextra -arch arm64 -arch x86_64 -mmacosx-version-min=11.0 -o ../dist/solard-macos solard.c
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos
+          path: dist/solard-macos
+
+  test:
+    name: Test on ${{ matrix.os }}
+    needs: [cosmo, macos]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest,  bin: solard-linux-x86_64 }
+          - { os: macos-latest,   bin: solard-macos }
+          - { os: windows-latest, bin: solard-windows-x86_64.exe }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { path: dist, merge-multiple: true }
+      - name: Run solard against the fake inverter
+        shell: bash
+        run: |
+          chmod +x dist/* || true
+          python3 tools/fake_inverter.py 15020 &
+          sleep 1
+          ./dist/${{ matrix.bin }} --config "$RUNNER_TEMP/solard.conf" --host 127.0.0.1 --port 15020 --http 18768 --data "$RUNNER_TEMP/data" &
+          for i in $(seq 1 20); do sleep 1; curl -fsS http://127.0.0.1:18768/api/now > now.json 2>/dev/null && python3 -c "import json; d=json.load(open('now.json')); assert d['ok'] == 1 and d['pv']['w'] == 1000, d" && break; done
+          python3 -c "import json; d=json.load(open('now.json')); assert d['ok'] == 1, d; print('ok', d['pv']['w'], 'W solar')"
+          curl -fsS http://127.0.0.1:18768/ping
+          curl -fsS http://127.0.0.1:18768/ | head -c 100
+
+  installers:
+    name: Installer on ${{ matrix.os }}
+    needs: [cosmo, macos]
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { path: dist, merge-multiple: true }
+      - name: install.sh (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          python3 tools/fake_inverter.py 15020 &
+          (cd dist && python3 -m http.server 18090 &)
+          sleep 2
+          SOLARD_BASE_URL=http://127.0.0.1:18090 SOLARD_HOST=127.0.0.1 SOLARD_PORT=15020 SOLARD_CAPACITY=10 sh install/install.sh
+          systemctl is-active solard
+          curl -fsS http://127.0.0.1:8768/api/now | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['ok'] == 1, d; print('ok')"
+          sh install/install.sh --uninstall
+      - name: install.ps1 (Windows)
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          Start-Process python -ArgumentList 'tools/fake_inverter.py', '15020'
+          Start-Process python -ArgumentList '-m', 'http.server', '18090' -WorkingDirectory dist
+          Start-Sleep 3
+          $env:SOLARD_BASE_URL = 'http://127.0.0.1:18090'; $env:SOLARD_HOST = '127.0.0.1'; $env:SOLARD_PORT = '15020'; $env:SOLARD_CAPACITY = '10'
+          ./install/install.ps1
+          Get-ScheduledTask -TaskName solard | Format-List TaskName, State
+          $ok = $false
+          foreach ($i in 1..20) { Start-Sleep 1; try { $d = Invoke-RestMethod http://127.0.0.1:8768/api/now; if ($d.ok -eq 1) { $ok = $true; break } } catch {} }
+          if (-not $ok) { Get-Content "$env:LOCALAPPDATA\solard\solard.conf"; throw 'solard did not answer' }
+          Write-Host "ok: $($d.pv.w) W solar, battery $($d.battery.soc) %"
+          $env:SOLARD_UNINSTALL = '1'; ./install/install.ps1
+
+  release:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [test, installers]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with: { path: dist, merge-multiple: true }
+      - uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/solard-*
+            install/install.sh
+            install/install.ps1

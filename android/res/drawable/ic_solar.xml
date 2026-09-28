@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Launcher icon: an amber sun over a solar panel on graphite. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="96dp" android:height="96dp"
+    android:viewportWidth="96" android:viewportHeight="96">
+    <path android:fillColor="#FF17191E"
+        android:pathData="M20,4 h56 a16,16 0 0 1 16,16 v56 a16,16 0 0 1 -16,16 h-56 a16,16 0 0 1 -16,-16 v-56 a16,16 0 0 1 16,-16 z"/>
+    <path android:fillColor="#FFFFB13B"
+        android:pathData="M48,18 a10,10 0 1 1 0,20 a10,10 0 1 1 0,-20 z"/>
+    <path android:strokeColor="#FFFFB13B" android:strokeWidth="3" android:strokeLineCap="round"
+        android:pathData="M48,10 v3 M48,43 v3 M30,28 h3 M63,28 h3 M35.3,15.3 l2.1,2.1 M58.6,38.6 l2.1,2.1 M35.3,40.7 l2.1,-2.1 M58.6,17.4 l2.1,-2.1"/>
+    <path android:strokeColor="#FFD9DCE1" android:strokeWidth="3" android:strokeLineJoin="round"
+        android:pathData="M24,54 h48 l8,24 h-64 z M40,54 l-3,24 M56,54 l3,24 M19,66 h58"/>
+</vector>
