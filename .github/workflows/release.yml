@@ -65,7 +65,7 @@ jobs:
           for i in $(seq 1 20); do sleep 1; curl -fsS http://127.0.0.1:18768/api/now > now.json 2>/dev/null && python3 -c "import json; d=json.load(open('now.json')); assert d['ok'] == 1 and d['pv']['w'] == 1000, d" && break; done
           python3 -c "import json; d=json.load(open('now.json')); assert d['ok'] == 1, d; print('ok', d['pv']['w'], 'W solar')"
           curl -fsS http://127.0.0.1:18768/ping
-          curl -fsS http://127.0.0.1:18768/ | head -c 100
+          curl -fsS -o page.html http://127.0.0.1:18768/ && head -c 60 page.html && echo
 
   installers:
     name: Installer on ${{ matrix.os }}
@@ -87,7 +87,8 @@ jobs:
           sleep 2
           SOLARD_BASE_URL=http://127.0.0.1:18090 SOLARD_HOST=127.0.0.1 SOLARD_PORT=15020 SOLARD_CAPACITY=10 sh install/install.sh
           systemctl is-active solard
-          curl -fsS http://127.0.0.1:8768/api/now | python3 -c "import json,sys; d=json.load(sys.stdin); assert d['ok'] == 1, d; print('ok')"
+          for i in $(seq 1 20); do sleep 1; curl -fsS -o now.json http://127.0.0.1:8768/api/now && python3 -c "import json; assert json.load(open('now.json'))['ok'] == 1" && break; done
+          python3 -c "import json; d=json.load(open('now.json')); assert d['ok'] == 1, d; print('ok', d['pv']['w'], 'W solar')"
           sh install/install.sh --uninstall
       - name: install.ps1 (Windows)
         if: runner.os == 'Windows'
