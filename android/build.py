@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build the QuickSolar APK: no Gradle, just the Android SDK build tools.
 
-    python3 android/build.py            -> dist/QuickSolar.apk
+    python3 android/build.py            -> dist/QuickSolar-v<version>.apk
 
 Needs a JDK (javac, jar, keytool) and the Android SDK (build-tools + a platform),
 found via ANDROID_HOME / ANDROID_SDK_ROOT or the usual install location.
@@ -18,7 +18,10 @@ from zipfile import ZipFile, ZIP_DEFLATED
 root = Path(__file__).resolve().parent
 repo = root.parent
 build = root / "build"
-out = repo / "dist" / "QuickSolar.apk"
+import re
+_ver = re.search(r'versionName="([^"]+)"', (root / "AndroidManifest.xml").read_text()).group(1)
+_ver = _ver if _ver.count(".") >= 2 else _ver + ".0"
+out = repo / "dist" / f"QuickSolar-v{_ver}.apk"        # e.g. QuickSolar-v1.0.0.apk (one APK for all devices)
 
 
 def sdk_dir():

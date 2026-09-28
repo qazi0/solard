@@ -14,7 +14,7 @@ There are two parts:
 
 - `solard`, a single program with no dependencies. It reads the inverter every 5 seconds,
   keeps the history and serves the dashboard at `http://<computer>:8768/`.
-- `QuickSolar.apk`, the same dashboard as an app for Android phones and Android TV. It finds
+- The QuickSolar app, the same dashboard as an app for Android phones and Android TV. It finds
   the inverter and any solard server on the network by itself. It also works without
   solard, showing live data read directly from the inverter but no history.
 
@@ -60,8 +60,9 @@ On Windows set `$env:SOLARD_UNINSTALL = "1"` first and run the same command.
 
 ## Install the app
 
-Download `QuickSolar.apk` from the [latest release](https://github.com/qazi0/solard/releases/latest)
-and open it on the phone or TV. Android will ask to allow installing apps from this source.
+Download `QuickSolar-v<version>.apk` from the [latest release](https://github.com/qazi0/solard/releases/latest)
+and open it on the phone or TV. The same APK works on every Android phone and Android TV.
+Android will ask to allow installing apps from this source.
 
 On first start the app searches the network, lists the inverter and any solard server,
 and asks for the battery size. Without a server it shows the NOW, DAY and DETAILS pages.
