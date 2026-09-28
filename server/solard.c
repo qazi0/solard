@@ -964,20 +964,23 @@ static void load_conf(const char *path) {
     fclose(f);
 }
 
-/* remember a discovered inverter address in solard.conf (other lines kept) */
-static void save_host(void) {
+/* set one key in solard.conf (other lines kept, comments too) */
+static void save_key(const char *key, const char *value) {
     char tmp[610], line[512]; snprintf(tmp, sizeof tmp, "%s.tmp", conf_path);
-    FILE *in = fopen(conf_path, "r"), *out = fopen(tmp, "w"); int done = 0;
+    FILE *in = fopen(conf_path, "r"), *out = fopen(tmp, "w"); int done = 0; size_t kl = strlen(key);
     if (!out) { if (in) fclose(in); return; }
     while (in && fgets(line, sizeof line, in)) {
         char *p = line; while (*p == ' ' || *p == '\t') p++;
-        if (!strncmp(p, "host", 4) && strchr(p, '=')) { if (!done) fprintf(out, "host = %s\n", host_buf); done = 1; }
+        if (!strncmp(p, key, kl) && (p[kl] == ' ' || p[kl] == '\t' || p[kl] == '=')) { if (!done) fprintf(out, "%s = %s\n", key, value); done = 1; }
         else fputs(line, out);
     }
-    if (!done) fprintf(out, "host = %s\n", host_buf);
+    if (!done) fprintf(out, "%s = %s\n", key, value);
     if (in) fclose(in);
     if (fclose(out) == 0) rename_file(tmp, conf_path);
 }
+
+/* remember a discovered inverter address in solard.conf */
+static void save_host(void) { save_key("host", host_buf); }
 
 /* ---------------------------------------------------------------- http */
 
@@ -1195,6 +1198,11 @@ static void handle(int fd) {
     p++;
     char *q = NULL, *e = strchr(p, ' '); if (e) *e = 0;
     if ((e = strchr(p, '?'))) { *e = 0; q = e + 1; }
+    if (!strcmp(p, "/api/config/save")) {       /* the page sets the battery size (solard's own settings only) */
+        const char *c = q ? strstr(q, "capacity=") : NULL; char v[32];
+        if (c) { double x = atof(c + 9); if (x > 0 && x <= 1000) { capacity_kwh = x; snprintf(v, sizeof v, "%.1f", x); save_key("capacity", v); } }
+        p = "/api/config";                       /* answer with the settings */
+    }
     if (!strcmp(p, "/api/now")) api_now(fd);
     else if (!strcmp(p, "/api/day")) api_day(fd, q);
     else if (!strcmp(p, "/api/days")) api_days(fd, q);

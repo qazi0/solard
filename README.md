@@ -49,9 +49,8 @@ automatically (at login on macOS, at boot on Linux, at sign in on Windows).
 - Run one server per inverter. The inverter's dongle only accepts a few connections at a
   time (three on the tested model), and each server keeps one open.
 
-Nothing needs to be configured. Enter your battery size in the app's setup. If you only use
-the dashboard in a browser, add `capacity = 15` (your usable kWh) to the settings file
-described below instead.
+Nothing needs to be configured. The battery size is entered in the app's setup, or by
+clicking "Need Battery Size" on the dashboard in a browser.
 
 Advanced installer options, set as environment variables before the command:
 `SOLARD_HOST=192.168.1.50` if the inverter is not found automatically, and
