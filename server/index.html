@@ -996,14 +996,15 @@ function renderNow(d){
   var projSoc = Math.max(drain ? b.reserve : 0, Math.min(Math.max(b.soc, LIMIT), b.soc - (rate / 1000 * horizon) / b.capacity_kwh * 100));
   var third = drain ? ['WOULD RUN OUT', clock12(new Date(now.getTime() + b.hours_to_empty * 3600000)) + '<small class="when">' + dayWord(new Date(now.getTime() + b.hours_to_empty * 3600000)) + '</small>']
             : toFull > 0 ? ['FULL (' + LIMIT + '%) IN', durText(toFull)]
-            : !capKnown ? ['ESTIMATES', '<span class="soon" style="color:#a3a8b1">Set Battery Size In Settings</span>']
+            : !capKnown ? ['ESTIMATES', '<span class="soon" style="color:#ffc15e">Need Battery Size</span><small class="when">' + (CFG.app ? 'Set In Settings' : 'capacity in solard.conf') + '</small>']
             : atLimit ? ['BATTERY', '<span class="soon">Full · ' + LIMIT + '% Limit</span>']
             : ['WOULD RUN OUT', '<span class="soon">Not Anytime Soon</span>'];
   var eta = '<span class="cap">' + cap + '</span><b>' + head + '</b>' +
     '<div class="eta-row">' +
     '<div><span>' + (night ? 'SUNRISE IN' : 'SUNSET IN') + '</span><em>' + durText(Math.max(0, horizon)) + '</em></div>' +
-    '<div><span>' + (night ? 'LEFT AT SUNRISE' : 'AT SUNSET') + '</span><em>' + Math.round(projSoc) + '%<small>(' +
-      (projSoc / 100 * b.capacity_kwh).toFixed(1) + ' kWh)</small></em></div>' +
+    (capKnown ? '<div><span>' + (night ? 'LEFT AT SUNRISE' : 'AT SUNSET') + '</span><em>' + Math.round(projSoc) + '%<small>(' +
+      (projSoc / 100 * b.capacity_kwh).toFixed(1) + ' kWh)</small></em></div>'
+              : '<div><span>5 MIN AVERAGE</span><em>' + watts(b.w_avg) + '<small>' + (b.w_avg > 30 ? 'out' : b.w_avg < -30 ? 'in' : '') + '</small></em></div>') +
     '<div><span>' + third[0] + '</span><em>' + third[1] + '</em></div>' +
     '</div>';
   $('eta').innerHTML = eta;
