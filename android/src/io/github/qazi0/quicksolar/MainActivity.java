@@ -35,7 +35,7 @@ import java.util.Map;
  * and this activity answers:
  *
  *   /api/config[/save]  the setup (answered here, never forwarded)
- *   /api/discover       search the LAN for the inverter / a solard server
+ *   /api/discover       search the LAN for the inverter / a solard server (?servers=1: servers only)
  *   live data           from a solard server if one is set up (records history);
  *                       otherwise, or while it is unreachable, straight from the
  *                       inverter (Inverter.java)
@@ -124,7 +124,7 @@ public final class MainActivity extends Activity {
 
             if ("/api/config".equals(path)) return json(configJson());
             if ("/api/config/save".equals(path)) { save(req.getUrl()); return json(configJson()); }
-            if ("/api/discover".equals(path)) return json(Discovery.run());
+            if ("/api/discover".equals(path)) return json(Discovery.run("1".equals(req.getUrl().getQueryParameter("servers"))));
             if ("/api/probe".equals(path)) return json(Discovery.probeOne(String.valueOf(req.getUrl().getQueryParameter("ip")).trim()));
             if ("/api/now".equals(path)) {
                 String body = server.isEmpty() ? null : fetch(full, 1500);

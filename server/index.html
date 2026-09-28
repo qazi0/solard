@@ -239,6 +239,13 @@ html,body{background:#0c0d10;color:#f3f4f6;height:100%;overflow:hidden;
 .su-btn.sec{background:transparent;color:#c4c8cf;margin-top:8px}
 .su-btn.focus{border-color:#f3f4f6}
 @media (min-width: 1000px) { #setup .box{zoom:1.18} }   /* TV: readable from the sofa */
+/* "history server found" banner (direct mode) */
+.found{display:none;-webkit-align-items:center;align-items:center;background:#15241c;border:1px solid #24583a;border-radius:16px;padding:10px 12px 10px 18px;margin-bottom:12px}
+.found .t{-webkit-flex:1;flex:1;min-width:0}
+.found b{display:block;font-size:17px;font-weight:600;color:#e3f5ea}
+.found span{display:block;font-size:13.5px;color:#8fbfa3;margin-top:2px}
+.found .go{background:#3ddc84;color:#08170e;border-radius:11px;padding:9px 18px;font-size:15px;font-weight:700;cursor:pointer;margin-left:12px;white-space:nowrap}
+.found .no{color:#8fbfa3;font-size:14px;font-weight:600;padding:9px 12px;cursor:pointer;margin-left:4px;white-space:nowrap}
 .note{margin-left:16px;font-size:14px;color:#8b909a;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 
 /* ---------- DETAILS ---------- */
@@ -347,6 +354,8 @@ html,body{background:#0c0d10;color:#f3f4f6;height:100%;overflow:hidden;
   .ax{font-size:10px}
   .scene .sv{font-size:36px} .scene .su{font-size:17px} .scene .sl{font-size:18px}
   .note{display:block;margin:2px 0 0;width:100%;font-size:11px;white-space:normal}
+  .found{padding:10px 10px 10px 14px;margin-bottom:10px;-webkit-flex-wrap:wrap;flex-wrap:wrap} .found b{font-size:14.5px} .found span{font-size:12px}
+  .found .go{padding:8px 14px;font-size:13.5px} .found .no{font-size:13px;padding:8px 8px}
   #setup .box{padding:20px 14px 28px} .su-head{margin-bottom:14px} .su-head h2{font-size:21px} .su-head p{font-size:12.5px}
   .su-logo,.su-logo svg{width:44px;height:44px} .su-row{min-height:54px;padding:9px 12px} .su-t b{font-size:14.5px} .su-t span{font-size:12px}
   .su-row.seg{-webkit-flex-wrap:wrap;flex-wrap:wrap} .su-row.seg .su-t{-webkit-flex:1 0 100%;flex:1 0 100%} .su-row.seg .su-seg{margin-top:10px}
@@ -380,6 +389,8 @@ html,body{background:#0c0d10;color:#f3f4f6;height:100%;overflow:hidden;
 
   <!-- ================= NOW ================= -->
   <div class="page sel" id="p-now">
+    <div class="found" id="found"><div class="t"><b>History Server Found On This Network</b><span id="found-s"></span></div>
+      <span class="go" id="found-go">Use It</span><span class="no" id="found-no">Not Now</span></div>
     <div class="now">
       <div class="scene">
         <svg viewBox="0 0 760 600" preserveAspectRatio="xMidYMid meet">
@@ -1676,6 +1687,31 @@ $('su-body').addEventListener('click', function(e){
   if (!d && t.parentNode && t.parentNode.className === 'su-seg') d = t.textContent === 'Auto' ? -1 : 1;
   suAct(suItems()[suFocus], d || 0);
 }, false);
+/* In direct mode, look (once per start) for a solard server that appeared later, and offer it. */
+var foundUrl = '', foundTries = 0, foundDismissed = false;
+function checkForServer(){
+  if (!directMode() || foundUrl || foundDismissed) return;
+  foundTries++;
+  get('/api/discover?servers=1', function(e, r){
+    if (e || !r || !r.servers || !r.servers.length || !directMode()) {
+      if (foundTries < 4) setTimeout(checkForServer, 60000 * foundTries);   /* again after 1, 2, 3 minutes */
+      return;
+    }
+    foundUrl = r.servers[0];
+    $('found-s').textContent = foundUrl.replace(/^https?:\/\//, '').replace(/:8768$/, '') + ' keeps day, week and month history' +
+      (window.innerWidth >= 760 ? '  ·  press OK to use it' : '');
+    $('found').style.display = '-webkit-flex'; $('found').style.display = 'flex';
+  }, 45000);
+}
+function hideFound(){ foundUrl = ''; foundDismissed = true; $('found').style.display = 'none'; }
+function useFound(){
+  var u = foundUrl; if (!u) return;
+  hideFound();
+  get('/api/config/save?server=' + encodeURIComponent(u), function(e, r){ if (!e && r) CFG = r; applyLocation(); applyPages(); setRow('tabs'); tick(); show(page); });
+}
+$('found-go').onclick = useFound;
+$('found-no').onclick = hideFound;
+
 function showGear(){ $('gear').style.display = $('dots').style.display = CFG.app ? 'inline-block' : 'none'; }
 /* About: ⋮ in the header (phone), "About" in Settings (TV remote) */
 var aboutOpen = false;
@@ -1765,6 +1801,7 @@ document.addEventListener('keydown', function(e){
   }
   e.preventDefault();
   if (row === 'tabs') {
+    if ((k === 13 || k === 23) && foundUrl && PAGES[page] === 'now') { useFound(); return; }
     if (k === 38 && CFG.app) { openSetup(); return; }
     if (k === 37) show(page - 1);
     else if (k === 39) show(page + 1);
@@ -1814,7 +1851,8 @@ function clock(){
 }
 setRow('tabs'); clock();
 waiting('Connecting To Your Inverter');
-loadConfig(function(){ applyPages(); show(page); if (CFG.app && !CFG.configured) openSetup(); tick(); });
+loadConfig(function(){ applyPages(); show(page); if (CFG.app && !CFG.configured) openSetup(); tick();
+  if (CFG.configured) setTimeout(checkForServer, 4000); });
 setInterval(tick, 3000); setInterval(clock, 1000);
 setInterval(function(){ var p = PAGES[page]; if (ymd(dayRef) === ymd(new Date())) { if (p === 'day') loadDay(); if (p === 'details') loadDetails(); } }, 60000);
 </script>

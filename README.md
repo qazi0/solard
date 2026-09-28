@@ -68,7 +68,8 @@ Android will ask to allow installing apps from this source.
 
 On first start the app searches the network, lists the inverter and any solard server,
 and asks for the battery size. Without a server it shows the NOW, DAY and DETAILS pages.
-With a server it also shows WEEK, MONTH and YEAR.
+With a server it also shows WEEK, MONTH and YEAR. If you install solard later, the app
+notices it on the next start and offers to switch to it with one tap.
 
 ## Supported inverters
 

@@ -859,10 +859,14 @@ static int local_ipv4(struct in_addr *out) {
     return 0;
 }
 
-static int scan_502(char c[][16], int n) {
-    struct in_addr me;
-    if (local_ipv4(&me) < 0) return n;
-    unsigned base = ntohl(me.s_addr) & 0xFFFFFF00u, self = ntohl(me.s_addr);
+/* VPN / overlay ranges (Radmin 26.x, Hamachi 25.x, Tailscale/CGNAT 100.64/10): never a home LAN */
+static int vpn_range(unsigned ip) {
+    unsigned a = ip >> 24, b = (ip >> 16) & 255;
+    return a == 26 || a == 25 || (a == 100 && b >= 64 && b < 128);
+}
+
+/* scan one /24 (base = a.b.c.0) for an open Modbus/TCP port */
+static int scan_subnet(char c[][16], int n, unsigned base, unsigned self) {
     for (unsigned h0 = 1; h0 < 255; h0 += 64) {                   /* 64 connects at a time */
         int fd[64]; struct pollfd pf[64]; unsigned ip[64]; int k = 0;
         for (unsigned h = h0; h < h0 + 64 && h < 255; h++) {
@@ -903,7 +907,17 @@ static int discover(char *out, size_t cap, int verbose) {
     n = wifikit_broadcast(c, n, serial);
     int from_bc = n;
     for (int pass = 0; pass < 2; pass++) {
-        if (pass == 1) n = scan_502(c, n);
+        if (pass == 1) {
+            /* this machine's own /24 (unless it's a VPN address), then the most common home
+               ranges: reachable through a second router, where the broadcast doesn't get */
+            struct in_addr me; unsigned self = 0, nets[4]; int k = 0;
+            if (local_ipv4(&me) == 0) self = ntohl(me.s_addr);
+            if (self && !vpn_range(self)) nets[k++] = self & 0xFFFFFF00u;
+            const unsigned common[] = { 0xC0A80100u, 0xC0A80000u, 0x0A000000u };   /* 192.168.1, 192.168.0, 10.0.0 */
+            for (int j = 0; j < 3; j++) { int dup = 0; for (int x = 0; x < k; x++) dup |= nets[x] == common[j]; if (!dup) nets[k++] = common[j]; }
+            int before = n;
+            for (int j = 0; j < k && n == before; j++) n = scan_subnet(c, n, nets[j], self);
+        }
         for (int i = pass ? from_bc : 0; i < n; i++) {
             int ok = probe(c[i]);
             if (verbose) printf("  %-15s %s%s%s\n", c[i], ok ? "GoodWe hybrid inverter (Modbus/TCP)" : "no answer to the hybrid registers",

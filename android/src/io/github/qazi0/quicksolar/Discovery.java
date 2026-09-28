@@ -38,14 +38,17 @@ import java.util.concurrent.TimeUnit;
 final class Discovery {
     private Discovery() { }
 
-    static String run() {
+    static String run() { return run(false); }
+
+    /** serversOnly: look only for solard servers (port 8768); the inverter is not contacted. */
+    static String run(final boolean serversOnly) {
         final Map<String, String> names = Collections.synchronizedMap(new LinkedHashMap<String, String>());
         final List<String> modbus = Collections.synchronizedList(new ArrayList<String>());
         final List<String> servers = Collections.synchronizedList(new ArrayList<String>());
         String self = localIPv4();
         String subnet = self == null ? null : self.substring(0, self.lastIndexOf('.') + 1);
 
-        Thread bc = new Thread(new Runnable() { public void run() { broadcast(names); } }, "goodwe-discover");
+        Thread bc = new Thread(new Runnable() { public void run() { if (!serversOnly) broadcast(names); } }, "goodwe-discover");
         bc.start();
 
         if (subnet != null) {
@@ -54,7 +57,7 @@ final class Discovery {
                 final String ip = subnet + i;
                 if (ip.equals(self)) continue;
                 pool.execute(new Runnable() { public void run() {
-                    if (open(ip, Inverter.TCP_PORT, 350)) modbus.add(ip);
+                    if (!serversOnly && open(ip, Inverter.TCP_PORT, 350)) modbus.add(ip);
                     if (open(ip, 8768, 350) && "solard ok".equals(get("http://" + ip + ":8768/ping"))) servers.add("http://" + ip + ":8768");
                 } });
             }

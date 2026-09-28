@@ -86,9 +86,11 @@ if (-not (Get-NetFirewallRule -DisplayName 'solard (QuickSolar)' -ErrorAction Si
     catch { Write-Host '  skipped -- phones may not reach solard until you allow it in Windows Defender Firewall.' }
 }
 
-$ip = (Get-NetIPAddress -AddressFamily IPv4 -ErrorAction SilentlyContinue |
-       Where-Object { $_.IPAddress -notmatch '^(127|169\.254)\.' -and $_.PrefixOrigin -ne 'WellKnown' } |
-       Select-Object -First 1).IPAddress
+# the home-network address: the adapter with a default gateway (not a VPN adapter)
+$ip = (Get-NetIPConfiguration -ErrorAction SilentlyContinue |
+       Where-Object { $_.IPv4DefaultGateway -and $_.NetAdapter.Status -eq 'Up' -and $_.IPv4Address.IPAddress -notmatch '^(26|25|100)\.' } |
+       Select-Object -First 1).IPv4Address.IPAddress
+if (-not $ip) { $ip = 'this-pc' }
 $up = $false
 foreach ($i in 1..15) {                       # give the service a moment to start
     try { Invoke-WebRequest -UseBasicParsing -TimeoutSec 2 -Uri "http://127.0.0.1:$port/ping" | Out-Null; $up = $true; break } catch { Start-Sleep -Seconds 1 }
