@@ -46,14 +46,16 @@ automatically (at login on macOS, at boot on Linux, at sign in on Windows).
 - macOS asks once whether solard may find devices on your local network. Click Allow.
 - Windows asks once to allow it through the firewall so phones can reach it.
 - The computer should not go to sleep, otherwise the history has gaps.
+- Run one server per inverter. The inverter's dongle only accepts a few connections at a
+  time (three on the tested model), and each server keeps one open.
 
-Installer options, set as environment variables:
+Nothing needs to be configured. Enter your battery size in the app's setup. If you only use
+the dashboard in a browser, add `capacity = 15` (your usable kWh) to the settings file
+described below instead.
 
-| variable | meaning |
-|---|---|
-| `SOLARD_CAPACITY=15` | usable battery size in kWh, needed for the time left estimates |
-| `SOLARD_HOST=192.168.1.50` | inverter address, if it is not found automatically |
-| `SOLARD_HTTP=8768` | port for the dashboard and the app |
+Advanced installer options, set as environment variables before the command:
+`SOLARD_HOST=192.168.1.50` if the inverter is not found automatically, and
+`SOLARD_HTTP=8768` to use another port.
 
 To uninstall on macOS or Linux run the same command with `sh -s -- --uninstall` at the end.
 On Windows set `$env:SOLARD_UNINSTALL = "1"` first and run the same command.

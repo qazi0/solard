@@ -879,7 +879,15 @@ function renderNow(d){
      "discharging", and 95 % counts as full. */
   /* charge limit: read from the inverter (47760); set by hand in setup only if it doesn't report one */
   var LIMIT = b.charge_limit > 0 ? b.charge_limit : CFG.charge_limit > 0 ? CFG.charge_limit : 100, IDLE_W = 80, bw = b.w;
-  if (CFG.capacity_kwh > 0) b.capacity_kwh = CFG.capacity_kwh;      /* the battery size from setup */
+  /* battery size: from the app's setup, else from solard.conf; the estimates are worked out here
+     from it and the 5-minute average, so the app's setting works with any server */
+  if (CFG.capacity_kwh > 0) b.capacity_kwh = CFG.capacity_kwh;
+  var capKnown = b.capacity_kwh > 0;
+  if (capKnown) {
+    var usableK = Math.max(0, (b.soc - b.reserve) / 100 * b.capacity_kwh);
+    b.hours_to_empty = b.w_avg > 30 ? usableK * 1000 / b.w_avg : -1;
+    b.hours_to_full = b.w_avg < -30 ? (100 - b.soc) / 100 * b.capacity_kwh * 1000 / -b.w_avg : -1;
+  } else { b.hours_to_empty = b.hours_to_full = -1; }
   var bst = bw > IDLE_W ? 'dis' : bw < -IDLE_W ? 'chg' : 'idle', atLimit = b.soc >= LIMIT;
   /* the panels alone cover the house (anything extra goes into the battery) */
   var onSolar = d.pv.w > 30 && d.pv.w >= d.home_w * 0.9 && bst !== 'dis';
@@ -969,6 +977,7 @@ function renderNow(d){
   else if (drain)    { cap = 'BATTERY WILL LAST'; head = durText(b.hours_to_empty); }
   else if (onSolar)  { cap = 'RIGHT NOW'; head = 'Running On Solar'; }
   else if (toFull > 0) { cap = 'FULLY CHARGED (' + LIMIT + '%) IN'; head = durText(toFull); }
+  else if (!capKnown) { cap = 'BATTERY'; head = bst === 'dis' ? 'Discharging' : bst === 'chg' ? 'Charging' : atLimit ? 'Full' : 'Holding Steady'; }
   else               { cap = 'BATTERY'; head = atLimit ? 'Full' : 'Holding Steady'; }
   /* battery % expected at sunrise / sunset: draining at the 5-minute average,
      charging at the live rate but never past the 95 % limit */
@@ -976,6 +985,7 @@ function renderNow(d){
   var projSoc = Math.max(drain ? b.reserve : 0, Math.min(Math.max(b.soc, LIMIT), b.soc - (rate / 1000 * horizon) / b.capacity_kwh * 100));
   var third = drain ? ['WOULD RUN OUT', clock12(new Date(now.getTime() + b.hours_to_empty * 3600000)) + '<small class="when">' + dayWord(new Date(now.getTime() + b.hours_to_empty * 3600000)) + '</small>']
             : toFull > 0 ? ['FULL (' + LIMIT + '%) IN', durText(toFull)]
+            : !capKnown ? ['ESTIMATES', '<span class="soon" style="color:#a3a8b1">Set Battery Size In Settings</span>']
             : atLimit ? ['BATTERY', '<span class="soon">Full · ' + LIMIT + '% Limit</span>']
             : ['WOULD RUN OUT', '<span class="soon">Not Anytime Soon</span>'];
   var eta = '<span class="cap">' + cap + '</span><b>' + head + '</b>' +
@@ -1622,7 +1632,12 @@ function suButton(b){
   if (b === 'close') { closeSetup(); return; }
   if (b === 'about') { openAbout(); return; }
   var manual = SU.sel === SU.inv.length || SU.sel < 0, ip = manual ? String(SU.manual || '').trim() : SU.inv[SU.sel].ip;
-  if (!/^\d+\.\d+\.\d+\.\d+$/.test(ip)) { SU.msg = 'Choose your inverter, or enter its address.'; drawSetup(); return; }
+  var server = SU.srv[SU.srvI] || '';
+  /* with a server the app gets its data there; the inverter address is only a fallback */
+  if (!/^\d+\.\d+\.\d+\.\d+$/.test(ip)) {
+    if (!server) { SU.msg = 'Choose your inverter, or enter its address.'; drawSetup(); return; }
+    ip = '';
+  }
   if (!(SU.cap > 0)) { SU.msg = 'Enter your battery size (usable kWh).'; drawSetup(); return; }
   function done(transport){
     var q = 'inverter_ip=' + encodeURIComponent(ip) + '&transport=' + transport + '&server=' + encodeURIComponent(SU.srv[SU.srvI] || '') +
@@ -1631,10 +1646,13 @@ function suButton(b){
             '&sunrise=' + pad(Math.floor(SU.rise / 60)) + ':' + pad(SU.rise % 60) + '&sunset=' + pad(Math.floor(SU.set / 60)) + ':' + pad(SU.set % 60);
     get('/api/config/save?' + q, function(e, r){ if (!e && r) CFG = r; applyLocation(); closeSetup(); showGear(); applyPages(); setRow('tabs'); tick(); show(page); });
   }
-  if (!manual) { done(SU.inv[SU.sel].transport || 'tcp'); return; }
+  if (!manual || !ip) { done(!manual ? SU.inv[SU.sel].transport || 'tcp' : 'tcp'); return; }
   SU.msg = 'Checking ' + ip + '…'; drawSetup();
   get('/api/probe?ip=' + encodeURIComponent(ip), function(e, r){
-    if (e || !r || !r.ok) { SU.msg = 'No GoodWe hybrid inverter answered at ' + ip + '.'; drawSetup(); return; }
+    if (e || !r || !r.ok) {
+      if (server) { SU.msg = ''; done('tcp'); return; }    /* the server reads it; the direct link is only a fallback */
+      SU.msg = 'No GoodWe hybrid inverter answered at ' + ip + '.'; drawSetup(); return;
+    }
     SU.msg = ''; done(r.transport);
   });
 }
