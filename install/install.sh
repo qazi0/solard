@@ -50,7 +50,7 @@ stop_service() {
 if [ "${1:-}" = --uninstall ]; then
   stop_service
   rm -f "$PLIST" "$HOME/.config/systemd/user/solard.service"
-  [ -f /etc/systemd/system/solard.service ] && sudo_ rm -f /etc/systemd/system/solard.service && sudo_ systemctl daemon-reload
+  if [ -f /etc/systemd/system/solard.service ]; then sudo_ rm -f /etc/systemd/system/solard.service; sudo_ systemctl daemon-reload; fi
   rm -f "$DIR/solard"
   say "solard removed. Your settings and history are still in $DIR (delete that folder to remove them too)."
   exit 0
@@ -68,9 +68,9 @@ if [ ! -f "$CONF" ]; then
   {
     echo "# solard settings (key = value). Restart solard after changes."
     echo "http = $PORT"
-    [ -n "$SOLARD_CAPACITY" ] && echo "capacity = $SOLARD_CAPACITY" || echo "# capacity = 15      # usable battery kWh"
-    [ -n "$SOLARD_HOST" ] && echo "host = $SOLARD_HOST" || echo "# host = found automatically"
-    [ -n "$SOLARD_PORT" ] && echo "port = $SOLARD_PORT"
+    if [ -n "$SOLARD_CAPACITY" ]; then echo "capacity = $SOLARD_CAPACITY"; else echo "# capacity = 15      # usable battery kWh"; fi
+    if [ -n "$SOLARD_HOST" ]; then echo "host = $SOLARD_HOST"; else echo "# host = found automatically"; fi
+    if [ -n "$SOLARD_PORT" ]; then echo "port = $SOLARD_PORT"; fi
     echo "# lat = 51.50       # for sunrise/sunset on the dashboard"
     echo "# lon = -0.12"
   } > "$CONF"
@@ -78,7 +78,7 @@ fi
 
 if ! grep -q '^host' "$CONF"; then
   say "Looking for your GoodWe inverter on this network..."
-  [ "$OS" = Darwin ] && say "  macOS will ask to let solard \"find devices on your local network\": click Allow."
+  if [ "$OS" = Darwin ]; then say "  macOS will ask to let solard \"find devices on your local network\": click Allow."; fi
   IP=""
   for try in 1 2 3 4; do                       # time to answer the macOS prompt
     if OUT=$("$DIR/solard" --config "$CONF" --discover 2>/dev/null); then
@@ -151,7 +151,8 @@ if curl -fsS -m 3 "http://127.0.0.1:$PORT/ping" >/dev/null 2>&1; then
   say "  Dashboard:      http://${IP:-localhost}:$PORT/"
   say "  Phone / TV app: open QuickSolar -> it finds this server automatically."
   say "  Settings:       $CONF      History: $DIR/data"
-  [ "$OS" = Darwin ] && say "  Keep this Mac awake (System Settings -> Energy) so it records all day."
+  if [ "$OS" = Darwin ]; then say "  Keep this Mac awake (System Settings -> Energy) so it records all day."; fi
 else
   say "solard was installed but isn't answering yet -- see $DIR/solard.log"
 fi
+exit 0
