@@ -18,7 +18,9 @@ jobs:
       - uses: actions/checkout@v4
       - name: Get cosmocc
         run: |
-          curl -fsSLo cosmocc.zip https://cosmo.zip/pub/cosmocc/cosmocc.zip
+          # pinned Cosmopolitan release from GitHub; cosmo.zip as a fallback (it has been unreachable)
+          curl -fsSL --retry 3 -o cosmocc.zip https://github.com/jart/cosmopolitan/releases/download/4.0.2/cosmocc-4.0.2.zip \
+            || curl -fsSL --retry 3 -o cosmocc.zip https://cosmo.zip/pub/cosmocc/cosmocc.zip
           mkdir -p "$HOME/cosmocc" && unzip -q cosmocc.zip -d "$HOME/cosmocc"
           echo "$HOME/cosmocc/bin" >> "$GITHUB_PATH"
       - run: server/build.sh release

@@ -122,7 +122,7 @@ and `/ping`.
 
 ```sh
 server/build.sh                 # build for this machine, output in dist/
-server/build.sh release         # all release binaries, needs cosmocc
+server/build.sh release         # all release binaries, needs cosmocc (github.com/jart/cosmopolitan releases)
 python3 android/build.py        # the app, needs a JDK and the Android SDK
 python3 tools/fake_inverter.py  # a fake inverter for testing
 ```
