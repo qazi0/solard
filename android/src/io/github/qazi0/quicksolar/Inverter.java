@@ -234,6 +234,12 @@ final class Inverter {
     private static String temp10(int raw) { return raw == -1 || raw == 32767 ? "null" : String.format(Locale.US, "%.1f", raw / 10.0); }
 
     private void build(int[] r, int[] m, int periodMs) {
+        /* a reply that isn't really the runtime + BMS blocks (the dongle has answered with
+           another block's bytes, e.g. the serial number read as 860 MW): skip it.
+           35100..35102 is the inverter's clock (yy mm / dd hh / mi ss). */
+        int mo = r[0] & 255, dd = r[1] >> 8, hh = r[1] & 255, mi = r[2] >> 8;
+        if (mo < 1 || mo > 12 || dd < 1 || dd > 31 || hh > 23 || mi > 59
+                || u32(r, 35100, 35105) > 30000 || u32(r, 35100, 35109) > 30000 || m[7] > 100) return;
         int B = 35100, M = 37000;
         double vpv1 = volt10(u16(r, B, 35103)), ipv1 = volt10(u16(r, B, 35104));
         double vpv2 = volt10(u16(r, B, 35107)), ipv2 = volt10(u16(r, B, 35108));

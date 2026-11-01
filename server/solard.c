@@ -764,6 +764,28 @@ static int poll_inverter(void) {
     n.cell_tmin = U16(m, 37021) ? temp10(S16(m, 37021)) : NA;
     n.cell_vmax = U16(m, 37022) ? U16(m, 37022) / 1000.0 : NA;
     n.cell_vmin = U16(m, 37023) ? U16(m, 37023) / 1000.0 : NA;
+    /* Reject a reply that isn't really the runtime + BMS blocks. The dongle (shared by
+       several clients) has answered with another block's bytes: once the serial number
+       ("3L01" = 0x334C3031) landed in PV1 power as 860 MW and wrecked a day's total.
+       35100..35102 is the inverter's clock (yy mm / dd hh / mi ss); everything else must
+       be physically possible. A rejected poll is just a missed reading. */
+    {
+        unsigned mo = r[0] & 255, dd = r[1] >> 8, hh = r[1] & 255, mi = r[2] >> 8, ss = r[2] & 255;
+        int sane = mo >= 1 && mo <= 12 && dd >= 1 && dd <= 31 && hh < 24 && mi < 60 && ss < 60
+            && n.ppv1 >= 0 && n.ppv1 <= 30000 && n.ppv2 >= 0 && n.ppv2 <= 30000
+            && n.vbat <= 1000 && n.ibat >= -1000 && n.ibat <= 1000
+            && n.inv_total_w >= -40000 && n.inv_total_w <= 40000 && n.house_w <= 40000
+            && n.grid_mode <= 2 && n.work_mode <= 5 && n.bat_mode <= 5
+            && n.soc <= 100 && n.soh <= 100;
+        if (!sane) {
+            snprintf(last_err, sizeof last_err, "implausible reading skipped");
+            printf("solard: implausible reading skipped (pv1 %d W, pv2 %d W, soc %d, clock %02u-%02u %02u:%02u)\n",
+                   n.ppv1, n.ppv2, n.soc, mo, dd, hh, mi);
+            fflush(stdout);
+            inv_close();                                 /* resynchronise with the dongle */
+            return -1;
+        }
+    }
     cur = n;
 
     /* Battery power averaged over ~5 minutes for the time-left estimates:
