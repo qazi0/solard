@@ -56,6 +56,26 @@ Advanced installer options, set as environment variables before the command:
 `SOLARD_HOST=192.168.1.50` if the inverter is not found automatically, and
 `SOLARD_HTTP=8768` to use another port.
 
+### Updates
+
+Installed servers update themselves. Once a day they check this repository for a newer
+release, download the new program, check it against the release's `SHA256SUMS`, swap it
+in (the previous one is kept as `solard.prev`), restart and make sure it answers. If it
+does not, the previous version is put back. Settings and history are not touched. A log
+is kept in `update.log` next to the program.
+
+- To turn it off, add `auto_update = false` to the settings file, or install with
+  `SOLARD_AUTO_UPDATE=0`.
+- To update right away: `sh ~/.solard/install.sh --update` (macOS, Linux) or
+  `powershell -ExecutionPolicy Bypass -File "$env:LOCALAPPDATA\solard\install.ps1" -Update` (Windows).
+- On macOS each new version asks once more to find devices on the local network, because
+  the program is not signed with an Apple developer certificate. Click Allow when it appears.
+- Servers installed before version 1.1.0 need the install command run once more to get
+  the updater.
+
+The app cannot update itself (Android only allows that through an app store). It shows a
+notice with a download link when a newer version is released.
+
 To uninstall on macOS or Linux run the same command with `sh -s -- --uninstall` at the end.
 On Windows set `$env:SOLARD_UNINSTALL = "1"` first and run the same command.
 

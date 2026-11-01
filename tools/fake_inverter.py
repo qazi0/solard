@@ -7,10 +7,12 @@
 Serves synthetic values: 1 kW solar, 900 W house, battery discharging 520 W at 60 %.
 Only function 0x03 (read holding registers) is answered.
 """
-import socketserver, struct, sys
+import socketserver, struct, sys, time
 
 def registers():
     r = [0] * 125                       # 35100..35224
+    t = time.localtime()                # 35100..35102: the inverter's clock (yy mm / dd hh / mi ss)
+    r[0] = (t.tm_year % 100) << 8 | t.tm_mon; r[1] = t.tm_mday << 8 | t.tm_hour; r[2] = t.tm_min << 8 | t.tm_sec
     def u16(a, v): r[a - 35100] = int(v) & 0xffff
     def u32(a, v): v = int(v) & 0xffffffff; r[a - 35100] = v >> 16; r[a - 35099] = v & 0xffff
     u16(35103, 3000); u16(35104, 20); u32(35105, 600)          # PV1 300 V 2 A 600 W

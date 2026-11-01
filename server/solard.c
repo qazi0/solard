@@ -59,6 +59,9 @@
 #include <time.h>
 #include <unistd.h>
 
+#ifndef SOLARD_VERSION
+#define SOLARD_VERSION "dev"            /* release builds: -DSOLARD_VERSION="1.1.0" */
+#endif
 #define POLL_MS       5000
 #define GAP_S         60.0          /* readings further apart than this are a gap (see "energy") */
 #define NA            (-9999.0)     /* "not reported" -> JSON null */
@@ -1063,8 +1066,8 @@ static void api_now(int fd) {
     bits_text(berr, sizeof berr, r->bat_err, BMS_ALARMS);
     bits_text(bwarn, sizeof bwarn, r->bat_warn, BMS_WARNINGS);
     sb_t b; sb_init(&b, 8192);
-    sb_printf(&b, "{\"ok\":%d,\"ts\":%lld,\"age_s\":%.1f,\"err\":\"%s\",",
-              r->ok, r->ts, r->ok ? (now_ms() - r->ts) / 1000.0 : -1.0, last_err);
+    sb_printf(&b, "{\"ok\":%d,\"ts\":%lld,\"age_s\":%.1f,\"err\":\"%s\",\"server_version\":\"%s\",",
+              r->ok, r->ts, r->ok ? (now_ms() - r->ts) / 1000.0 : -1.0, last_err, SOLARD_VERSION);
     sb_printf(&b, "\"pv\":{\"w\":%d,\"s1\":{\"v\":%.1f,\"a\":%.1f,\"w\":%d,\"mode\":%d,\"mode_label\":\"%s\"},"
               "\"s2\":{\"v\":%.1f,\"a\":%.1f,\"w\":%d,\"mode\":%d,\"mode_label\":\"%s\"}},",
               r->ppv, r->vpv1, r->ipv1, r->ppv1, r->pv1_mode, LABEL(PV_MODES, r->pv1_mode),
@@ -1231,9 +1234,9 @@ static void handle(int fd) {
     else if (!strcmp(p, "/ping")) reply(fd, 200, "text/plain", "solard ok", 9);
     else if (!strcmp(p, "/api/config")) {       /* the page's setup, for browsers (the app keeps its own) */
         char c[320];
-        int n = snprintf(c, sizeof c, "{\"app\":false,\"configured\":true,\"capacity_kwh\":%.1f,\"charge_limit\":%d,"
+        int n = snprintf(c, sizeof c, "{\"app\":false,\"server_version\":\"%s\",\"configured\":true,\"capacity_kwh\":%.1f,\"charge_limit\":%d,"
                          "\"lat\":%s,\"lon\":%s,\"sun_mode\":\"auto\",\"sunrise\":\"06:00\",\"sunset\":\"18:00\"}",
-                         capacity_kwh, charge_limit > 0 ? charge_limit : 100, jf(site_lat, 4), jf(site_lon, 4));
+                         SOLARD_VERSION, capacity_kwh, charge_limit > 0 ? charge_limit : 100, jf(site_lat, 4), jf(site_lon, 4));
         reply(fd, 200, "application/json", c, (size_t)n);
     }
     else if (!strcmp(p, "/") || !strcmp(p, "/index.html")) serve_file(fd, "index.html", "text/html; charset=utf-8");
@@ -1269,6 +1272,7 @@ int main(int argc, char **argv) {
     for (int i = 1; i < argc; i++) {                               /* 3. command line */
         const char *a = argv[i];
         if (!strcmp(a, "--discover")) only_discover = 1;
+        else if (!strcmp(a, "--version")) { printf("%s\n", SOLARD_VERSION); return 0; }
         else if (!strcmp(a, "--help") || !strcmp(a, "-h")) {
             printf("solard -- monitor for GoodWe hybrid inverters\n"
                    "usage: solard [--config FILE] [--host IP] [--port 502] [--http 8768] [--capacity KWH]\n"

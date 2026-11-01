@@ -23,7 +23,10 @@ jobs:
             || curl -fsSL --retry 3 -o cosmocc.zip https://cosmo.zip/pub/cosmocc/cosmocc.zip
           mkdir -p "$HOME/cosmocc" && unzip -q cosmocc.zip -d "$HOME/cosmocc"
           echo "$HOME/cosmocc/bin" >> "$GITHUB_PATH"
-      - run: server/build.sh release
+      - name: Build
+        run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then export SOLARD_VERSION="${GITHUB_REF_NAME#v}"; else export SOLARD_VERSION="dev-${GITHUB_SHA::7}"; fi
+          server/build.sh release
       - uses: actions/upload-artifact@v4
         with:
           name: cosmo
@@ -35,8 +38,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: |
+          if [ "$GITHUB_REF_TYPE" = tag ]; then V="${GITHUB_REF_NAME#v}"; else V="dev-${GITHUB_SHA::7}"; fi
           mkdir -p dist && cd server && xxd -i index.html > index_html.h
-          cc -O2 -Wall -Wextra -arch arm64 -arch x86_64 -mmacosx-version-min=11.0 -o ../dist/solard-macos solard.c
+          cc -O2 -Wall -Wextra -DSOLARD_VERSION="\"$V\"" -arch arm64 -arch x86_64 -mmacosx-version-min=11.0 -o ../dist/solard-macos solard.c
+          ../dist/solard-macos --version
       - uses: actions/upload-artifact@v4
         with:
           name: macos
@@ -91,6 +96,18 @@ jobs:
           systemctl is-active solard
           for i in $(seq 1 20); do sleep 1; curl -fsS -o now.json http://127.0.0.1:8768/api/now && python3 -c "import json; assert json.load(open('now.json'))['ok'] == 1" && break; done
           python3 -c "import json; d=json.load(open('now.json')); assert d['ok'] == 1, d; print('ok', d['pv']['w'], 'W solar')"
+          systemctl is-enabled solard-update.timer
+          # auto-update: same binary as a "new release", verified against SHA256SUMS, then rollback copy kept
+          cp install/install.sh dist/ && (cd dist && sha256sum solard-* install.sh > SHA256SUMS)
+          sudo SOLARD_HOME=$HOME/.solard SOLARD_UPDATE_TAG=v9.9.9 SOLARD_UPDATE_BASE=http://127.0.0.1:18090 sh $HOME/.solard/install.sh --update || { cat $HOME/.solard/update.log; exit 1; }
+          cat $HOME/.solard/update.log
+          test -f $HOME/.solard/solard.prev && grep -q "updated solard" $HOME/.solard/update.log
+          curl -fsS http://127.0.0.1:8768/ping
+          # a tampered checksum must be refused
+          sed -i -E 's/^0/x/; s/^[1-9a-f]/0/; s/^x/1/' dist/SHA256SUMS      # change every hash's first digit
+          if sudo SOLARD_HOME=$HOME/.solard SOLARD_UPDATE_TAG=v9.9.9 SOLARD_UPDATE_BASE=http://127.0.0.1:18090 sh $HOME/.solard/install.sh --update; then echo "tampered update was accepted"; exit 1; fi
+          grep -q "checksum mismatch" $HOME/.solard/update.log && echo "tampered download refused"
+          curl -fsS http://127.0.0.1:8768/ping
           sh install/install.sh --uninstall
       - name: install.ps1 (Windows)
         if: runner.os == 'Windows'
@@ -106,6 +123,21 @@ jobs:
           foreach ($i in 1..20) { Start-Sleep 1; try { $d = Invoke-RestMethod http://127.0.0.1:8768/api/now; if ($d.ok -eq 1) { $ok = $true; break } } catch {} }
           if (-not $ok) { Get-Content "$env:LOCALAPPDATA\solard\solard.conf"; throw 'solard did not answer' }
           Write-Host "ok: $($d.pv.w) W solar, battery $($d.battery.soc) %"
+          Get-ScheduledTask -TaskName solard-update | Format-List TaskName, State
+          # auto-update: same binary as a "new release", verified against SHA256SUMS
+          Copy-Item install/install.ps1 dist/
+          $sums = Get-ChildItem dist -File | Where-Object { $_.Name -like 'solard-*' -or $_.Name -eq 'install.ps1' } | ForEach-Object { "$((Get-FileHash -Algorithm SHA256 $_.FullName).Hash.ToLower())  $($_.Name)" }
+          Set-Content -Path dist/SHA256SUMS -Value $sums -Encoding ASCII
+          $env:SOLARD_UPDATE_TAG = 'v9.9.9'; $env:SOLARD_UPDATE_BASE = 'http://127.0.0.1:18090'
+          & "$env:LOCALAPPDATA\solard\install.ps1" -Update
+          if (-not (Test-Path "$env:LOCALAPPDATA\solard\solard.prev.exe")) { throw 'no rollback copy' }
+          Invoke-RestMethod http://127.0.0.1:8768/ping
+          # a tampered checksum must be refused
+          Set-Content -Path dist/SHA256SUMS -Value ($sums | ForEach-Object { $(if ($_[0] -eq '0') { '1' } else { '0' }) + $_.Substring(1) }) -Encoding ASCII
+          $refused = $false; try { & "$env:LOCALAPPDATA\solard\install.ps1" -Update } catch { $refused = $true }
+          if (-not $refused) { throw 'tampered update was accepted' } else { Write-Host 'tampered download refused' }
+          Invoke-RestMethod http://127.0.0.1:8768/ping
+          Remove-Item Env:SOLARD_UPDATE_TAG, Env:SOLARD_UPDATE_BASE
           $env:SOLARD_UNINSTALL = '1'; ./install/install.ps1
 
   release:
@@ -117,9 +149,12 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with: { path: dist, merge-multiple: true }
+      - name: Checksums (the auto-updater verifies every download against these)
+        run: cp install/install.sh install/install.ps1 dist/ && cd dist && sha256sum solard-* install.sh install.ps1 > SHA256SUMS && cat SHA256SUMS
       - uses: softprops/action-gh-release@v2
         with:
           files: |
+            dist/SHA256SUMS
             dist/solard-*
-            install/install.sh
-            install/install.ps1
+            dist/install.sh
+            dist/install.ps1

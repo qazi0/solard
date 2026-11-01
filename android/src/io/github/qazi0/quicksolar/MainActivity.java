@@ -124,6 +124,10 @@ public final class MainActivity extends Activity {
 
             if ("/api/config".equals(path)) return json(configJson());
             if ("/api/config/save".equals(path)) { save(req.getUrl()); return json(configJson()); }
+            if ("/api/latest".equals(path)) {          // newest release on GitHub, for the "update available" notice
+                String body = fetch("https://api.github.com/repos/qazi0/solard/releases/latest", 5000);
+                return json(body != null ? body : "{}");
+            }
             if ("/api/discover".equals(path)) return json(Discovery.run("1".equals(req.getUrl().getQueryParameter("servers"))));
             if ("/api/probe".equals(path)) return json(Discovery.probeOne(String.valueOf(req.getUrl().getQueryParameter("ip")).trim()));
             if ("/api/now".equals(path)) {

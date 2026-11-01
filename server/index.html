@@ -394,6 +394,8 @@ html,body{background:#0c0d10;color:#f3f4f6;height:100%;overflow:hidden;
 
   <!-- ================= NOW ================= -->
   <div class="page sel" id="p-now">
+    <div class="found" id="upd"><div class="t"><b id="upd-t"></b><span id="upd-s"></span></div>
+      <a class="go" id="upd-go" href="#" style="text-decoration:none">Download</a><span class="no" id="upd-no">Not Now</span></div>
     <div class="found" id="found"><div class="t"><b>History Server Found On This Network</b><span id="found-s"></span></div>
       <span class="go" id="found-go">Use It</span><span class="no" id="found-no">Not Now</span></div>
     <div class="now">
@@ -1741,10 +1743,26 @@ $('eta').addEventListener('click', function(e){
   for (var t = e.target; t && t !== this; t = t.parentNode) if (t.className === 'needcap') { askCapacity(); return; }
 }, false);
 
+/* the app: tell the user when a newer QuickSolar is on GitHub (Android needs them to install it) */
+function vnum(v){ var p = String(v || '').replace(/^v/, '').split('.'); return (+p[0] || 0) * 1e6 + (+p[1] || 0) * 1e3 + (+p[2] || 0); }
+function checkForUpdate(){
+  if (!CFG.app || !CFG.version) return;
+  get('/api/latest', function(e, r){
+    if (e || !r || !r.tag_name || vnum(r.tag_name) <= vnum(CFG.version)) return;
+    $('upd-t').textContent = 'QuickSolar ' + r.tag_name.replace(/^v/, '') + ' Is Available';
+    $('upd-s').textContent = 'You have ' + CFG.version + '. Download the new APK and open it to update.';
+    $('upd-go').href = r.html_url || 'https://github.com/qazi0/solard/releases/latest';
+    $('upd').style.display = '-webkit-flex'; $('upd').style.display = 'flex';
+  }, 15000);
+}
+$('upd-no').onclick = function(){ $('upd').style.display = 'none'; };
+
 function showGear(){ $('gear').style.display = $('dots').style.display = CFG.app ? 'inline-block' : 'none'; }
 /* About: ⋮ in the header (phone), "About" in Settings (TV remote) */
 var aboutOpen = false;
-function openAbout(){ aboutOpen = true; $('about-ver').textContent = CFG.version ? 'Version ' + CFG.version : ''; $('about').style.display = '-webkit-flex'; $('about').style.display = 'flex'; }
+function openAbout(){ aboutOpen = true;
+  $('about-ver').textContent = (CFG.version ? 'Version ' + CFG.version : '') +
+    (lastNow && lastNow.server_version ? (CFG.version ? ' · ' : '') + 'Server ' + lastNow.server_version : ''); $('about').style.display = '-webkit-flex'; $('about').style.display = 'flex'; }
 function closeAbout(){ aboutOpen = false; $('about').style.display = 'none'; }
 $('dots').onclick = openAbout;
 $('about-close').onclick = closeAbout;
@@ -1882,7 +1900,7 @@ function clock(){
 setRow('tabs'); clock();
 waiting('Connecting To Your Inverter');
 loadConfig(function(){ applyPages(); show(page); if (CFG.app && !CFG.configured) openSetup(); tick();
-  if (CFG.configured) setTimeout(checkForServer, 4000); });
+  if (CFG.configured) { setTimeout(checkForServer, 4000); setTimeout(checkForUpdate, 8000); } });
 setInterval(tick, 3000); setInterval(clock, 1000);
 setInterval(function(){ var p = PAGES[page]; if (ymd(dayRef) === ymd(new Date())) { if (p === 'day') loadDay(); if (p === 'details') loadDetails(); } }, 60000);
 </script>

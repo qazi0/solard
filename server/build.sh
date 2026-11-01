@@ -10,16 +10,17 @@ set -e
 cd "$(dirname "$0")"
 mkdir -p ../dist
 xxd -i index.html > index_html.h
+V="-DSOLARD_VERSION=\"${SOLARD_VERSION:-dev}\""
 if [ "$1" != release ]; then
-  ${CC:-cc} -O2 -Wall -Wextra -o ../dist/solard solard.c
+  ${CC:-cc} -O2 -Wall -Wextra "$V" -o ../dist/solard solard.c
   echo "built dist/solard"; exit 0
 fi
-cosmocc -O2 -Wall -Wextra -o ../dist/solard.com solard.c
+cosmocc -O2 -Wall -Wextra "$V" -o ../dist/solard.com solard.c
 cp ../dist/solard.com ../dist/solard-windows-x86_64.exe
 cp ../dist/solard.com ../dist/solard-linux-x86_64 && assimilate -x -e ../dist/solard-linux-x86_64
 cp ../dist/solard.com ../dist/solard-linux-arm64 && assimilate -a -e ../dist/solard-linux-arm64
 rm -f ../dist/solard.com ../dist/*.bak ../dist/*.dbg ../dist/*.elf
 if [ "$(uname -s)" = Darwin ]; then
-  cc -O2 -Wall -Wextra -arch arm64 -arch x86_64 -mmacosx-version-min=11.0 -o ../dist/solard-macos solard.c
+  cc -O2 -Wall -Wextra "$V" -arch arm64 -arch x86_64 -mmacosx-version-min=11.0 -o ../dist/solard-macos solard.c
 fi
 ls -la ../dist
